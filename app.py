@@ -116,42 +116,58 @@ def detect_available_fonts():
     """检测系统可用字体"""
     try:
         import matplotlib.font_manager as fm
+        import os
         
-        # 中文字体关键词
-        chinese_keywords = [
-            'SimHei', 'SimSun', 'Microsoft YaHei', 'Microsoft JhengHei',
-            'PingFang', 'Hiragino', 'STHeiti', 'STSong', 'STKaiti',
-            'FangSong', 'KaiTi', 'LiSu', 'YouYuan', 'Chinese', 'CJK'
-        ]
+        # 基础字体列表，确保包含DejaVu Sans和中文字体
+        base_fonts = ['DejaVu Sans']
         
-        # 获取所有字体
-        all_fonts = [f.name for f in fm.fontManager.ttflist]
+        # 检查Windows系统中文字体文件
+        windows_font_paths = {
+            'SimHei': 'C:/Windows/Fonts/simhei.ttf',
+            'SimSun': 'C:/Windows/Fonts/simsun.ttc', 
+            'Microsoft YaHei': 'C:/Windows/Fonts/msyh.ttc',
+            'KaiTi': 'C:/Windows/Fonts/simkai.ttf'
+        }
         
-        # 查找中文字体
-        chinese_fonts = []
-        for font_name in all_fonts:
-            for keyword in chinese_keywords:
-                if keyword.lower() in font_name.lower():
-                    if font_name not in chinese_fonts:
-                        chinese_fonts.append(font_name)
-                    break
+        # 检查字体文件是否存在，如果存在则添加到可用字体列表
+        available_chinese_fonts = []
+        for font_name, font_path in windows_font_paths.items():
+            if os.path.exists(font_path):
+                available_chinese_fonts.append(font_name)
         
-        # 常用英文字体
-        common_fonts = ['Arial', 'Times New Roman', 'Calibri', 'Verdana', 'Helvetica']
-        english_fonts = [font for font in common_fonts if font in all_fonts]
+        # 如果没有找到字体文件，尝试通过matplotlib检测
+        if not available_chinese_fonts:
+            # 中文字体关键词
+            chinese_keywords = [
+                'SimHei', 'SimSun', 'Microsoft YaHei', 'Microsoft JhengHei',
+                'PingFang', 'Hiragino', 'STHeiti', 'STSong', 'STKaiti',
+                'FangSong', 'KaiTi', 'LiSu', 'YouYuan', 'Chinese', 'CJK'
+            ]
+            
+            # 获取所有字体
+            all_fonts = [f.name for f in fm.fontManager.ttflist]
+            
+            # 查找中文字体
+            for font_name in all_fonts:
+                for keyword in chinese_keywords:
+                    if keyword.lower() in font_name.lower():
+                        if font_name not in available_chinese_fonts:
+                            available_chinese_fonts.append(font_name)
+                        break
         
-        # 合并字体列表，中文字体优先
-        available_fonts = chinese_fonts + english_fonts
+        # 如果仍然没有找到中文字体，添加SimHei作为默认选项
+        if not available_chinese_fonts:
+            available_chinese_fonts = ['SimHei']
         
-        # 如果没有找到任何字体，使用默认列表
-        if not available_fonts:
-            available_fonts = ['DejaVu Sans', 'Arial', 'Times New Roman']
+        # 合并字体列表：DejaVu Sans + 中文字体
+        available_fonts = base_fonts + available_chinese_fonts
         
         return available_fonts
         
     except Exception as e:
         st.warning(f"字体检测失败: {e}")
-        return ['DejaVu Sans', 'Arial', 'Times New Roman']
+        # 确保返回包含中文字体的默认列表
+        return ['DejaVu Sans', 'SimHei']
 
 def validate_font(font_name):
     """验证字体是否可用"""
@@ -171,9 +187,14 @@ def load_font_config():
         available_fonts = detect_available_fonts()
         
         # 选择默认字体（优先选择中文字体）
-        default_font = 'SimHei'  # 默认首选
-        if default_font not in available_fonts and available_fonts:
-            default_font = available_fonts[0]
+        default_font = 'SimHei'  # 默认首选中文字体
+        if default_font not in available_fonts:
+            # 如果SimHei不可用，查找其他中文字体
+            chinese_fonts = [f for f in available_fonts if f not in ['DejaVu Sans']]
+            if chinese_fonts:
+                default_font = chinese_fonts[0]
+            else:
+                default_font = available_fonts[0] if available_fonts else 'DejaVu Sans'
         
         default_config = {
             'available_fonts': available_fonts,
