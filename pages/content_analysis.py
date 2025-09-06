@@ -346,10 +346,82 @@ class ContentAnalyzer:
     
     def detect_chinese_font(self):
         """检测并返回可用的中文字体路径"""
-        # 如果在云环境中，跳过字体检测
-        if self.is_cloud_environment():
+        # 云环境也尝试检测字体
+        is_cloud = self.is_cloud_environment()
+        if is_cloud:
+            # 云环境字体检测
+            return self._detect_cloud_chinese_font()
+    
+    def _detect_cloud_chinese_font(self):
+        """专门为云环境检测中文字体"""
+        try:
+            import matplotlib.font_manager as fm
+            
+            # 优先查找Noto字体（Google开源，云环境常见）
+            noto_fonts = []
+            for font in fm.fontManager.ttflist:
+                if 'noto' in font.name.lower() and ('cjk' in font.name.lower() or 'sans' in font.name.lower()):
+                    noto_fonts.append(font.fname)
+            
+            if noto_fonts:
+                return noto_fonts[0]
+            
+            # 查找其他可能的中文字体
+            chinese_keywords = ['simhei', 'simsun', 'yahei', 'kai', 'song', 'hei', 'chinese', 'cjk', 'han']
+            for font in fm.fontManager.ttflist:
+                font_name_lower = font.name.lower()
+                if any(keyword in font_name_lower for keyword in chinese_keywords):
+                    return font.fname
+            
+            # 如果没有找到中文字体，返回None让调用者处理
             return None
             
+        except Exception as e:
+            st.warning(f"云环境字体检测失败: {e}")
+            return None
+    
+    def _try_download_cloud_font(self):
+         """尝试为云环境下载中文字体"""
+         try:
+             import tempfile
+             import urllib.request
+             
+             # 使用开源的TTF中文字体（更兼容wordcloud）
+             font_urls = [
+                 # 使用GitHub上的开源中文字体
+                 'https://github.com/adobe-fonts/source-han-sans/raw/release/OTF/SimplifiedChinese/SourceHanSansSC-Regular.otf',
+                 'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf'
+             ]
+             
+             # 创建临时目录
+             temp_dir = tempfile.mkdtemp()
+             
+             for i, url in enumerate(font_urls):
+                 try:
+                     font_extension = url.split('.')[-1]
+                     font_path = os.path.join(temp_dir, f'chinese_font_{i}.{font_extension}')
+                     
+                     # 设置超时和用户代理
+                     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                     with urllib.request.urlopen(req, timeout=30) as response:
+                         with open(font_path, 'wb') as f:
+                             f.write(response.read())
+                     
+                     # 检查文件是否下载成功
+                     if os.path.exists(font_path) and os.path.getsize(font_path) > 1000:  # 至少1KB
+                         return font_path
+                         
+                 except Exception as download_error:
+                     st.warning(f"字体下载失败 {i+1}: {download_error}")
+                     continue
+             
+             return None
+             
+         except Exception as e:
+              st.warning(f"云环境字体下载功能失败: {e}")
+              return None
+             
+        # 本地环境字体检测
         # 常见中文字体路径
         font_paths = []
         
@@ -445,7 +517,77 @@ class ContentAnalyzer:
                     'min_font_size': 10,
                     'font_step': 2
                 })
-                st.info("☁️ 云环境模式：使用默认字体配置")
+                
+                # 云环境字体配置
+                try:
+                    # 尝试使用matplotlib内置的中文字体
+                    import matplotlib.font_manager as fm
+                    
+                    # 查找可用的中文字体
+                    chinese_fonts = []
+                    for font in fm.fontManager.ttflist:
+                        font_name = font.name.lower()
+                        if any(keyword in font_name for keyword in ['simhei', 'simsun', 'yahei', 'kai', 'song', 'hei', 'chinese', 'cjk']):
+                            chinese_fonts.append((font.name, font.fname))
+                    
+                    if chinese_fonts:
+                        # 使用找到的第一个中文字体
+                        font_name, font_path = chinese_fonts[0]
+                        wordcloud_config['font_path'] = font_path
+                        st.info(f"☁️ 云环境模式：使用字体 {font_name}")
+                    else:
+                        # 如果没有找到中文字体，尝试使用DejaVu Sans作为fallback
+                        dejavu_fonts = [f for f in fm.fontManager.ttflist if 'dejavu' in f.name.lower()]
+                        if dejavu_fonts:
+                            wordcloud_config['font_path'] = dejavu_fonts[0].fname
+                            st.warning("☁️ 云环境模式：未找到中文字体，使用DejaVu Sans（可能显示方块）")
+                        else:
+                            st.warning("☁️ 云环境模式：使用系统默认字体（可能显示方块）")
+                            
+                except Exception as cloud_font_error:
+                    st.warning(f"☁️ 云环境字体配置失败: {cloud_font_error}")
+                    # 尝试硬编码一些常见的云环境字体路径
+                    cloud_font_paths = [
+                        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                        '/usr/share/fonts/TTF/DejaVuSans.ttf',
+                        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+                        '/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+                        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+                        '/System/Library/Fonts/Arial.ttf'
+                    ]
+                    
+                    font_found = False
+                    for font_path in cloud_font_paths:
+                        if os.path.exists(font_path):
+                            wordcloud_config['font_path'] = font_path
+                            st.info(f"☁️ 云环境模式：使用系统字体 {os.path.basename(font_path)}")
+                            font_found = True
+                            break
+                    
+                    if not font_found:
+                        # 最后的fallback：尝试下载并使用在线字体
+                         cloud_font_path = self._try_download_cloud_font()
+                         if cloud_font_path:
+                             wordcloud_config['font_path'] = cloud_font_path
+                             st.success("☁️ 云环境模式：成功下载中文字体")
+                         else:
+                             # 使用特殊的wordcloud配置来处理Unicode
+                             wordcloud_config.update({
+                                 'font_step': 1,
+                                 'max_font_size': 60,
+                                 'min_font_size': 12,
+                                 'prefer_horizontal': 1.0,  # 强制水平显示
+                                 'relative_scaling': 0.3,
+                                 'mode': 'RGB'  # 改用RGB模式
+                             })
+                             st.warning("☁️ 云环境模式：使用优化配置，如仍显示方块请联系管理员")
+                             
+                             # 尝试设置matplotlib的字体回退
+                             try:
+                                 plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans']
+                                 plt.rcParams['axes.unicode_minus'] = False
+                             except:
+                                 pass
             else:
                 # 本地环境可以使用更丰富的配置
                 base_font_size = font_config.get('font_size', 12)
