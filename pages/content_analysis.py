@@ -418,9 +418,20 @@ class ContentAnalyzer:
              return None
              
          except Exception as e:
-              st.warning(f"云环境字体下载功能失败: {e}")
-              return None
-             
+             st.warning(f"云环境字体下载功能失败: {e}")
+             return None
+    
+    def detect_chinese_font(self):
+        """检测可用的中文字体"""
+        # 云环境优先使用专用检测
+        if self.is_cloud_environment():
+            cloud_font = self._detect_cloud_chinese_font()
+            if cloud_font:
+                return cloud_font
+            
+            # 云环境字体检测失败时的警告
+            st.warning("云环境字体检测失败，将使用默认配置")
+        
         # 本地环境字体检测
         # 常见中文字体路径
         font_paths = []
@@ -566,7 +577,7 @@ class ContentAnalyzer:
                     
                     if not font_found:
                         # 最后的fallback：尝试下载并使用在线字体
-                         cloud_font_path = self._try_download_cloud_font()
+                        cloud_font_path = self._try_download_cloud_font()
                          if cloud_font_path:
                              wordcloud_config['font_path'] = cloud_font_path
                              st.success("☁️ 云环境模式：成功下载中文字体")
