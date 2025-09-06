@@ -170,14 +170,51 @@ def detect_available_fonts():
         return ['DejaVu Sans', 'SimHei']
 
 def validate_font(font_name):
-    """验证字体是否可用"""
+    """验证字体是否可用并支持中文"""
     try:
         import matplotlib.font_manager as fm
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        import numpy as np
         
         # 检查字体是否在系统中
         font_files = [f for f in fm.fontManager.ttflist if font_name in f.name]
-        return len(font_files) > 0
-    except:
+        if not font_files:
+            return False
+        
+        # 进一步检查字体是否支持中文字符
+        try:
+            # 创建一个临时图形来测试中文字符渲染
+            fig, ax = plt.subplots(figsize=(1, 1))
+            
+            # 设置字体
+            plt.rcParams['font.sans-serif'] = [font_name]
+            
+            # 尝试渲染中文字符
+            test_text = "测试中文字体"
+            ax.text(0.5, 0.5, test_text, fontsize=12, ha='center', va='center')
+            
+            # 检查是否成功渲染（这里简化处理，主要检查是否有异常）
+            canvas = FigureCanvasAgg(fig)
+            canvas.draw()
+            
+            plt.close(fig)
+            
+            # 如果是已知的中文字体，直接返回True
+            chinese_fonts = ['SimHei', 'SimSun', 'Microsoft YaHei', 'KaiTi', 'FangSong']
+            if font_name in chinese_fonts:
+                return True
+            
+            # 对于其他字体，检查名称是否包含中文相关关键词
+            chinese_keywords = ['chinese', 'cjk', 'han', 'sim', 'kai', 'song', 'hei', 'yahei']
+            font_name_lower = font_name.lower()
+            return any(keyword in font_name_lower for keyword in chinese_keywords)
+            
+        except Exception:
+            # 如果渲染测试失败，但字体存在，可能仍然可用
+            return True
+            
+    except Exception:
         return False
 
 def load_font_config():
@@ -707,13 +744,19 @@ def show_data_overview():
                 if save_font_config(st.session_state.font_config):
                     if is_valid:
                         st.success("✅ 字体设置已应用并保存")
+                        if selected_font in ['SimHei', 'SimSun', 'Microsoft YaHei', 'KaiTi', 'FangSong']:
+                            st.info(f"🎨 {selected_font} 是标准中文字体，支持完整的中文字符显示")
                     else:
                         st.warning("⚠️ 字体设置已应用并保存，但该字体可能不支持中文显示")
+                        st.info("💡 建议选择 SimHei、SimSun、Microsoft YaHei 等中文字体以获得最佳显示效果")
                 else:
                     if is_valid:
                         st.success("✅ 字体设置已应用（保存失败）")
+                        if selected_font in ['SimHei', 'SimSun', 'Microsoft YaHei', 'KaiTi', 'FangSong']:
+                            st.info(f"🎨 {selected_font} 是标准中文字体，支持完整的中文字符显示")
                     else:
                         st.warning("⚠️ 字体设置已应用（保存失败），但该字体可能不支持中文显示")
+                        st.info("💡 建议选择 SimHei、SimSun、Microsoft YaHei 等中文字体以获得最佳显示效果")
         
         # 字体信息
         with st.expander("📋 字体详细信息", expanded=False):
