@@ -396,11 +396,19 @@ class ContentAnalyzer:
             ax.axis('off')
             return fig
         
+        # 获取用户字体配置
+        font_config = st.session_state.get('font_config', {
+            'selected_font': 'SimHei',
+            'font_size': 12
+        })
+        
         # 设置matplotlib中文字体支持
         try:
-            # 设置中文字体，解决方块显示问题
-            plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+            # 使用用户选择的字体
+            selected_font = font_config.get('selected_font', 'SimHei')
+            plt.rcParams['font.sans-serif'] = [selected_font, 'SimHei', 'Microsoft YaHei', 'DejaVu Sans']
             plt.rcParams['axes.unicode_minus'] = False
+            plt.rcParams['font.size'] = font_config.get('font_size', 12)
         except Exception as e:
             st.warning(f"字体设置警告: {e}")
         
@@ -434,18 +442,34 @@ class ContentAnalyzer:
                 st.info("☁️ 云环境模式：使用默认字体配置")
             else:
                 # 本地环境可以使用更丰富的配置
+                base_font_size = font_config.get('font_size', 12)
                 wordcloud_config.update({
                     'font_step': 1,
-                    'max_font_size': 100,
-                    'min_font_size': 10
+                    'max_font_size': min(100, base_font_size * 8),
+                    'min_font_size': max(8, base_font_size // 2)
                 })
                 
+                # 尝试使用用户选择的字体
+                selected_font = font_config.get('selected_font', 'SimHei')
+                
+                # 首先尝试使用字体路径
                 if font_path:
                     wordcloud_config['font_path'] = font_path
-                    st.info(f"🎨 使用字体: {os.path.basename(font_path)}")
+                    st.info(f"🎨 使用字体文件: {os.path.basename(font_path)}")
                 else:
-                    # 即使没有检测到字体文件，也尝试使用系统默认中文字体
-                    st.info("🎨 使用系统默认中文字体")
+                    # 如果没有字体文件，尝试使用字体名称
+                    try:
+                        import matplotlib.font_manager as fm
+                        # 查找用户选择的字体
+                        font_files = [f for f in fm.fontManager.ttflist if selected_font in f.name]
+                        if font_files:
+                            wordcloud_config['font_path'] = font_files[0].fname
+                            st.info(f"🎨 使用用户选择的字体: {selected_font}")
+                        else:
+                            st.info(f"🎨 字体 {selected_font} 不可用，使用系统默认中文字体")
+                    except Exception as font_error:
+                        st.warning(f"字体检测失败: {font_error}")
+                        st.info("🎨 使用系统默认中文字体")
             
             wordcloud = WordCloud(**wordcloud_config).generate_from_frequencies(word_freq)
             
@@ -482,10 +506,13 @@ class ContentAnalyzer:
         
         # 设置标题，确保中文显示正确
         try:
-            ax.set_title('词云图', fontsize=16, pad=20, fontproperties='SimHei')
+            selected_font = font_config.get('selected_font', 'SimHei')
+            title_fontsize = max(14, font_config.get('font_size', 12) + 4)
+            ax.set_title('词云图', fontsize=title_fontsize, pad=20, fontproperties=selected_font)
         except:
-            # 如果SimHei不可用，使用默认设置
-            ax.set_title('词云图', fontsize=16, pad=20)
+            # 如果用户选择的字体不可用，使用默认设置
+            title_fontsize = max(14, font_config.get('font_size', 12) + 4)
+            ax.set_title('词云图', fontsize=title_fontsize, pad=20)
         
         return fig
 

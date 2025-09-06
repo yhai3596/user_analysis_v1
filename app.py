@@ -9,6 +9,9 @@ import warnings
 warnings.filterwarnings('ignore')
 import os
 from pathlib import Path
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import json
 
 # 添加项目路径到系统路径
 import sys
@@ -109,6 +112,128 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def detect_available_fonts():
+    """检测系统可用字体"""
+    try:
+        import matplotlib.font_manager as fm
+        
+        # 中文字体关键词
+        chinese_keywords = [
+            'SimHei', 'SimSun', 'Microsoft YaHei', 'Microsoft JhengHei',
+            'PingFang', 'Hiragino', 'STHeiti', 'STSong', 'STKaiti',
+            'FangSong', 'KaiTi', 'LiSu', 'YouYuan', 'Chinese', 'CJK'
+        ]
+        
+        # 获取所有字体
+        all_fonts = [f.name for f in fm.fontManager.ttflist]
+        
+        # 查找中文字体
+        chinese_fonts = []
+        for font_name in all_fonts:
+            for keyword in chinese_keywords:
+                if keyword.lower() in font_name.lower():
+                    if font_name not in chinese_fonts:
+                        chinese_fonts.append(font_name)
+                    break
+        
+        # 常用英文字体
+        common_fonts = ['Arial', 'Times New Roman', 'Calibri', 'Verdana', 'Helvetica']
+        english_fonts = [font for font in common_fonts if font in all_fonts]
+        
+        # 合并字体列表，中文字体优先
+        available_fonts = chinese_fonts + english_fonts
+        
+        # 如果没有找到任何字体，使用默认列表
+        if not available_fonts:
+            available_fonts = ['DejaVu Sans', 'Arial', 'Times New Roman']
+        
+        return available_fonts
+        
+    except Exception as e:
+        st.warning(f"字体检测失败: {e}")
+        return ['DejaVu Sans', 'Arial', 'Times New Roman']
+
+def validate_font(font_name):
+    """验证字体是否可用"""
+    try:
+        import matplotlib.font_manager as fm
+        
+        # 检查字体是否在系统中
+        font_files = [f for f in fm.fontManager.ttflist if font_name in f.name]
+        return len(font_files) > 0
+    except:
+        return False
+
+def load_font_config():
+    """加载字体配置"""
+    try:
+        # 检测可用字体
+        available_fonts = detect_available_fonts()
+        
+        # 选择默认字体（优先选择中文字体）
+        default_font = 'SimHei'  # 默认首选
+        if default_font not in available_fonts and available_fonts:
+            default_font = available_fonts[0]
+        
+        default_config = {
+            'available_fonts': available_fonts,
+            'selected_font': default_font,
+            'font_size': 12,
+            'font_validated': validate_font(default_font)
+        }
+        
+        # 尝试从文件加载保存的配置
+        config_file = os.path.join(os.path.dirname(__file__), 'font_config.json')
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    saved_config = json.load(f)
+                
+                # 验证保存的字体是否仍然可用
+                if (saved_config.get('selected_font') in available_fonts and 
+                    validate_font(saved_config.get('selected_font'))):
+                    default_config.update({
+                        'selected_font': saved_config.get('selected_font'),
+                        'font_size': saved_config.get('font_size', 12),
+                        'font_validated': True
+                    })
+            except Exception as e:
+                st.warning(f"读取保存的字体配置失败: {e}")
+        
+        return default_config
+        
+    except Exception as e:
+        st.warning(f"字体配置加载失败: {e}")
+        return {
+            'available_fonts': ['DejaVu Sans', 'Arial', 'Times New Roman'],
+            'selected_font': 'DejaVu Sans',
+            'font_size': 12,
+            'font_validated': False
+        }
+
+def apply_font_config(font_config):
+    """应用字体配置"""
+    try:
+        plt.rcParams['font.family'] = font_config['selected_font']
+        plt.rcParams['font.size'] = font_config['font_size']
+        plt.rcParams['axes.unicode_minus'] = False
+    except Exception as e:
+        st.warning(f"字体配置应用失败: {e}")
+
+def save_font_config(font_config):
+    """保存字体配置到文件"""
+    try:
+        config_file = os.path.join(os.path.dirname(__file__), 'font_config.json')
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump({
+                'selected_font': font_config['selected_font'],
+                'font_size': font_config['font_size']
+            }, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        st.warning(f"保存字体配置失败: {e}")
+        return False
+
 def initialize_session_state():
     """初始化会话状态"""
     if 'data_loaded' not in st.session_state:
@@ -119,6 +244,8 @@ def initialize_session_state():
         st.session_state.data_info = None
     if 'processing_mode' not in st.session_state:
         st.session_state.processing_mode = 'sample'  # sample 或 full
+    if 'font_config' not in st.session_state:
+        st.session_state.font_config = load_font_config()
 
 def check_data_loaded():
     """检查数据是否已加载"""
@@ -472,6 +599,111 @@ def show_data_overview():
             ["标准模式", "高性能模式", "内存优化模式"],
             help="不同模式适用于不同的数据量和硬件配置"
         )
+        
+        # 字体配置
+        st.subheader("🎨 字体配置")
+        font_config = st.session_state.font_config
+        
+        # 显示当前字体状态
+        current_font = font_config.get('selected_font', 'DejaVu Sans')
+        font_validated = font_config.get('font_validated', False)
+        
+        if font_validated:
+            st.success(f"✅ 当前字体: {current_font}")
+        else:
+            st.warning(f"⚠️ 当前字体: {current_font} (可能不支持中文)")
+        
+        # 字体选择
+        available_fonts = font_config.get('available_fonts', ['DejaVu Sans'])
+        try:
+            current_index = available_fonts.index(current_font)
+        except ValueError:
+            current_index = 0
+        
+        selected_font = st.selectbox(
+            "选择字体",
+            options=available_fonts,
+            index=current_index,
+            help="选择适合的字体以正确显示中文字符"
+        )
+        
+        # 字体大小
+        font_size = st.slider(
+            "字体大小",
+            min_value=8,
+            max_value=20,
+            value=font_config.get('font_size', 12),
+            help="调整图表中文字的大小"
+        )
+        
+        # 字体预览
+        if st.checkbox("显示字体预览", value=False):
+            try:
+                import matplotlib.pyplot as plt
+                import matplotlib.font_manager as fm
+                
+                fig, ax = plt.subplots(figsize=(6, 2))
+                test_text = "字体预览 Font Preview 123"
+                
+                # 尝试使用选择的字体
+                try:
+                    plt.rcParams['font.family'] = selected_font
+                    ax.text(0.5, 0.5, test_text, ha='center', va='center', 
+                           fontsize=font_size, transform=ax.transAxes)
+                except:
+                    ax.text(0.5, 0.5, f"字体 {selected_font} 预览失败", 
+                           ha='center', va='center', fontsize=font_size, 
+                           transform=ax.transAxes)
+                
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1)
+                ax.axis('off')
+                st.pyplot(fig)
+                plt.close(fig)
+            except Exception as e:
+                st.error(f"字体预览失败: {e}")
+        
+        # 应用按钮
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 刷新字体列表"):
+                st.session_state.font_config = load_font_config()
+                st.success("字体列表已刷新")
+                st.rerun()
+        
+        with col2:
+            if st.button("✅ 应用字体设置"):
+                # 验证选择的字体
+                is_valid = validate_font(selected_font)
+                
+                st.session_state.font_config['selected_font'] = selected_font
+                st.session_state.font_config['font_size'] = font_size
+                st.session_state.font_config['font_validated'] = is_valid
+                
+                apply_font_config(st.session_state.font_config)
+                
+                # 保存配置到文件
+                if save_font_config(st.session_state.font_config):
+                    if is_valid:
+                        st.success("✅ 字体设置已应用并保存")
+                    else:
+                        st.warning("⚠️ 字体设置已应用并保存，但该字体可能不支持中文显示")
+                else:
+                    if is_valid:
+                        st.success("✅ 字体设置已应用（保存失败）")
+                    else:
+                        st.warning("⚠️ 字体设置已应用（保存失败），但该字体可能不支持中文显示")
+        
+        # 字体信息
+        with st.expander("📋 字体详细信息", expanded=False):
+            st.write(f"**可用字体数量**: {len(available_fonts)}")
+            st.write(f"**字体大小**: {font_size}")
+            st.write(f"**验证状态**: {'✅ 已验证' if font_validated else '❌ 未验证'}")
+            
+            if st.checkbox("显示所有可用字体"):
+                for i, font in enumerate(available_fonts, 1):
+                    validation_status = "✅" if validate_font(font) else "❌"
+                    st.write(f"{i}. {validation_status} {font}")
         
         # 缓存管理
         st.subheader("💾 缓存管理")
