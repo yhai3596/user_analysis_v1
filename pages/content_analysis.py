@@ -396,6 +396,14 @@ class ContentAnalyzer:
             ax.axis('off')
             return fig
         
+        # 设置matplotlib中文字体支持
+        try:
+            # 设置中文字体，解决方块显示问题
+            plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+            plt.rcParams['axes.unicode_minus'] = False
+        except Exception as e:
+            st.warning(f"字体设置警告: {e}")
+        
         # 检测运行环境和字体
         is_cloud = self.is_cloud_environment()
         font_path = self.detect_chinese_font()
@@ -436,7 +444,8 @@ class ContentAnalyzer:
                     wordcloud_config['font_path'] = font_path
                     st.info(f"🎨 使用字体: {os.path.basename(font_path)}")
                 else:
-                    st.warning("⚠️ 未检测到中文字体，使用默认字体")
+                    # 即使没有检测到字体文件，也尝试使用系统默认中文字体
+                    st.info("🎨 使用系统默认中文字体")
             
             wordcloud = WordCloud(**wordcloud_config).generate_from_frequencies(word_freq)
             
@@ -470,7 +479,13 @@ class ContentAnalyzer:
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.imshow(wordcloud, interpolation='bilinear')
         ax.axis('off')
-        ax.set_title('词云图', fontsize=16, pad=20)
+        
+        # 设置标题，确保中文显示正确
+        try:
+            ax.set_title('词云图', fontsize=16, pad=20, fontproperties='SimHei')
+        except:
+            # 如果SimHei不可用，使用默认设置
+            ax.set_title('词云图', fontsize=16, pad=20)
         
         return fig
 
