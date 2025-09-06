@@ -252,14 +252,26 @@ class ContentAnalyzer:
             return fig
         
         # 创建词云
-        wordcloud = WordCloud(
-            width=800,
-            height=400,
-            background_color='white',
-            max_words=max_words,
-            font_path='simhei.ttf',  # 中文字体，如果没有可以注释掉
-            colormap='viridis'
-        ).generate_from_frequencies(word_freq)
+        try:
+            # 尝试使用系统字体
+            wordcloud = WordCloud(
+                width=800,
+                height=400,
+                background_color='white',
+                max_words=max_words,
+                colormap='viridis',
+                prefer_horizontal=0.9,
+                relative_scaling=0.5
+            ).generate_from_frequencies(word_freq)
+        except Exception:
+            # 如果出现字体问题，使用默认设置
+            wordcloud = WordCloud(
+                width=800,
+                height=400,
+                background_color='white',
+                max_words=max_words,
+                colormap='viridis'
+            ).generate_from_frequencies(word_freq)
         
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.imshow(wordcloud, interpolation='bilinear')

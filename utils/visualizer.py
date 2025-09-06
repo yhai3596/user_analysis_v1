@@ -293,14 +293,26 @@ class UserBehaviorVisualizer:
             return plt.figure()
         
         # 创建词云
-        wordcloud = WordCloud(
-            width=800,
-            height=400,
-            background_color='white',
-            max_words=max_words,
-            font_path=self.font_path,  # 中文字体路径
-            colormap='viridis'
-        ).generate(text)
+        try:
+            # 尝试使用系统字体
+            wordcloud = WordCloud(
+                width=800,
+                height=400,
+                background_color='white',
+                max_words=max_words,
+                colormap='viridis',
+                prefer_horizontal=0.9,
+                relative_scaling=0.5
+            ).generate(text)
+        except Exception:
+            # 如果出现字体问题，使用默认设置
+            wordcloud = WordCloud(
+                width=800,
+                height=400,
+                background_color='white',
+                max_words=max_words,
+                colormap='viridis'
+            ).generate(text)
         
         # 创建matplotlib图形
         fig, ax = plt.subplots(figsize=(10, 5))
