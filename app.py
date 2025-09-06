@@ -23,11 +23,25 @@ from config.settings import get_config
 # 导入分析页面模块
 try:
     from pages import user_profile, geo_analysis, time_analysis, content_analysis, social_network
-except ImportError:
+    print("✅ 所有分析模块导入成功")
+except ImportError as e:
+    print(f"❌ 分析模块导入失败: {e}")
     # 如果pages模块不存在，创建占位符模块
     class PlaceholderModule:
         def main(self):
-            st.error("此分析模块尚未实现，请检查pages目录下的模块文件")
+            st.error(f"此分析模块尚未实现，请检查pages目录下的模块文件。错误信息: {e}")
+    
+    user_profile = PlaceholderModule()
+    geo_analysis = PlaceholderModule()
+    time_analysis = PlaceholderModule()
+    content_analysis = PlaceholderModule()
+    social_network = PlaceholderModule()
+except Exception as e:
+    print(f"❌ 分析模块导入出现其他错误: {e}")
+    # 创建占位符模块
+    class PlaceholderModule:
+        def main(self):
+            st.error(f"分析模块加载出现错误: {e}")
     
     user_profile = PlaceholderModule()
     geo_analysis = PlaceholderModule()

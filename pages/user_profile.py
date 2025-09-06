@@ -61,7 +61,8 @@ class UserProfileAnalyzer:
         available_metrics = [m for m in activity_metrics if m in df.columns]
         
         for metric in available_metrics:
-            data = df[metric].dropna()
+            # 确保数据类型为数值型
+            data = pd.to_numeric(df[metric], errors='coerce').dropna()
             analysis[metric] = {
                 'mean': data.mean(),
                 'median': data.median(),
@@ -74,7 +75,7 @@ class UserProfileAnalyzer:
         
         # 活跃度分级
         if '微博数' in df.columns:
-            weibo_counts = df['微博数'].dropna()
+            weibo_counts = pd.to_numeric(df['微博数'], errors='coerce').dropna()
             analysis['activity_levels'] = {
                 '低活跃(0-100)': (weibo_counts <= 100).sum(),
                 '中活跃(101-1000)': ((weibo_counts > 100) & (weibo_counts <= 1000)).sum(),
@@ -91,7 +92,7 @@ class UserProfileAnalyzer:
         
         # 粉丝影响力分析
         if '粉丝数' in df.columns:
-            followers = df['粉丝数'].dropna()
+            followers = pd.to_numeric(df['粉丝数'], errors='coerce').dropna()
             analysis['influence_levels'] = {
                 '微影响力(0-100)': (followers <= 100).sum(),
                 '小影响力(101-1000)': ((followers > 100) & (followers <= 1000)).sum(),
@@ -107,6 +108,9 @@ class UserProfileAnalyzer:
             # 计算总互动数
             df_temp = df.copy()
             interaction_cols = [col for col in available_interactions if col in df_temp.columns]
+            # 确保交互数据为数值型
+            for col in interaction_cols:
+                df_temp[col] = pd.to_numeric(df_temp[col], errors='coerce').fillna(0)
             df_temp['total_interactions'] = df_temp[interaction_cols].sum(axis=1)
             
             total_interactions = df_temp['total_interactions']
@@ -119,6 +123,11 @@ class UserProfileAnalyzer:
         # 影响力综合评分
         if '粉丝数' in df.columns and '微博数' in df.columns:
             df_temp = df.copy()
+            # 确保数据为数值型
+            df_temp['粉丝数'] = pd.to_numeric(df_temp['粉丝数'], errors='coerce').fillna(0)
+            df_temp['微博数'] = pd.to_numeric(df_temp['微博数'], errors='coerce').fillna(0)
+            if '转发数' in df_temp.columns:
+                df_temp['转发数'] = pd.to_numeric(df_temp['转发数'], errors='coerce').fillna(0)
             # 简单的影响力评分算法
             df_temp['influence_score'] = (
                 np.log1p(df_temp['粉丝数']) * 0.4 +
