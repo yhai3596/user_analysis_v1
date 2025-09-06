@@ -253,7 +253,7 @@ class ContentAnalyzer:
         
         # 创建词云
         try:
-            # 尝试使用系统字体
+            # 云环境兼容的WordCloud配置
             wordcloud = WordCloud(
                 width=800,
                 height=400,
@@ -261,17 +261,24 @@ class ContentAnalyzer:
                 max_words=max_words,
                 colormap='viridis',
                 prefer_horizontal=0.9,
-                relative_scaling=0.5
+                relative_scaling=0.5,
+                collocations=False,
+                mode='RGBA'
             ).generate_from_frequencies(word_freq)
-        except Exception:
-            # 如果出现字体问题，使用默认设置
-            wordcloud = WordCloud(
-                width=800,
-                height=400,
-                background_color='white',
-                max_words=max_words,
-                colormap='viridis'
-            ).generate_from_frequencies(word_freq)
+        except Exception as e:
+            # 如果出现任何问题，使用最简配置
+            try:
+                wordcloud = WordCloud(
+                    width=800,
+                    height=400,
+                    background_color='white',
+                    max_words=max_words,
+                    mode='RGBA'
+                ).generate_from_frequencies(word_freq)
+            except Exception as e2:
+                st.error(f"词云生成失败: {str(e2)}")
+                st.info("💡 提示：这可能是云环境的字体或图像处理问题")
+                return None
         
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.imshow(wordcloud, interpolation='bilinear')

@@ -294,7 +294,7 @@ class UserBehaviorVisualizer:
         
         # 创建词云
         try:
-            # 尝试使用系统字体
+            # 云环境兼容的WordCloud配置
             wordcloud = WordCloud(
                 width=800,
                 height=400,
@@ -302,17 +302,30 @@ class UserBehaviorVisualizer:
                 max_words=max_words,
                 colormap='viridis',
                 prefer_horizontal=0.9,
-                relative_scaling=0.5
+                relative_scaling=0.5,
+                collocations=False,
+                mode='RGBA'
             ).generate(text)
-        except Exception:
-            # 如果出现字体问题，使用默认设置
-            wordcloud = WordCloud(
-                width=800,
-                height=400,
-                background_color='white',
-                max_words=max_words,
-                colormap='viridis'
-            ).generate(text)
+        except Exception as e:
+            # 如果出现任何问题，使用最简配置
+            try:
+                wordcloud = WordCloud(
+                    width=800,
+                    height=400,
+                    background_color='white',
+                    max_words=max_words,
+                    mode='RGBA'
+                ).generate(text)
+            except Exception as e2:
+                st.error(f"词云生成失败: {str(e2)}")
+                st.info("💡 提示：这可能是云环境的字体或图像处理问题")
+                # 返回空图形而不是抛出异常
+                fig, ax = plt.subplots(figsize=(10, 5))
+                ax.text(0.5, 0.5, '词云生成失败', ha='center', va='center', fontsize=16)
+                ax.set_xlim(0, 1)
+                ax.set_ylim(0, 1)
+                ax.axis('off')
+                return fig
         
         # 创建matplotlib图形
         fig, ax = plt.subplots(figsize=(10, 5))

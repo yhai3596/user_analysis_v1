@@ -20,3 +20,4 @@ streamlit-echarts>=0.4.0
 streamlit-plotly-events>=0.0.6
 textstat>=0.7.3
 networkx>=3.1
+Pillow>=9.0.0
