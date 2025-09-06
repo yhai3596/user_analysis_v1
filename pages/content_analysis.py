@@ -9,6 +9,8 @@ import jieba.analyse
 from collections import Counter
 import re
 import sys
+import os
+import platform
 from pathlib import Path
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
@@ -41,25 +43,82 @@ class ContentAnalyzer:
         # 初始化jieba
         jieba.initialize()
         
-        # 停用词列表
+        # 扩展的停用词列表
         self.stop_words = set([
-            '的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '那', '他', '她', '它', '们', '这个', '那个', '什么', '怎么', '为什么', '哪里', '哪个', '多少', '几个', '第一', '可以', '应该', '能够', '已经', '还是', '或者', '但是', '因为', '所以', '如果', '虽然', '然后', '现在', '以后', '以前', '今天', '明天', '昨天'
+            # 基础停用词
+            '的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '那', '他', '她', '它', '们', '这个', '那个',
+            # 疑问词
+            '什么', '怎么', '为什么', '哪里', '哪个', '多少', '几个', '怎样', '如何', '哪些', '谁', '何时', '何地',
+            # 数量词
+            '第一', '第二', '第三', '一些', '很多', '许多', '大量', '少量', '全部', '部分', '所有',
+            # 情态词
+            '可以', '应该', '能够', '必须', '需要', '想要', '希望', '愿意', '打算', '准备',
+            # 时间词
+            '已经', '正在', '将要', '曾经', '从来', '总是', '经常', '有时', '偶尔', '从不',
+            # 连接词
+            '还是', '或者', '但是', '因为', '所以', '如果', '虽然', '然后', '接着', '于是', '因此', '然而', '不过', '而且', '并且', '以及',
+            # 时间表达
+            '现在', '以后', '以前', '今天', '明天', '昨天', '前天', '后天', '最近', '刚才', '马上', '立刻', '突然',
+            # 程度词
+            '非常', '特别', '十分', '相当', '比较', '更加', '最', '极其', '格外', '尤其', '特别是',
+            # 方位词
+            '这里', '那里', '哪里', '到处', '处处', '各处', '某处', '别处', '此处', '彼处',
+            # 代词
+            '我们', '你们', '他们', '她们', '它们', '大家', '别人', '其他', '另外', '各自', '彼此',
+            # 标点和符号
+            '，', '。', '！', '？', '；', '：', '"', "'", '（', '）', '【', '】', '《', '》',
+            # 网络用语
+            'http', 'https', 'www', 'com', 'cn', 'org', 'net', 'html', 'php', 'asp',
+            # 无意义词汇
+            '啊', '呀', '哦', '嗯', '哈', '呵', '嘿', '哟', '咦', '哇', '唉', '额', '呃', '嗯嗯', '哈哈',
+            # 常见动词
+            '做', '搞', '弄', '来', '走', '跑', '坐', '站', '躺', '睡', '吃', '喝', '买', '卖', '给', '拿', '放',
+            # 常见形容词
+            '大', '小', '高', '低', '长', '短', '新', '旧', '多', '少', '快', '慢', '早', '晚', '远', '近',
+            # 其他常见词
+            '东西', '事情', '问题', '方面', '情况', '时候', '地方', '方式', '方法', '结果', '原因', '目的', '意思', '内容', '方向'
         ])
     
     @cache_data(ttl=1800)
-    def analyze_text_content(self, df: pd.DataFrame, text_column: str = '微博内容') -> dict:
+    def analyze_text_content(self, df: pd.DataFrame, text_column: str = '微博文本') -> dict:
         """分析文本内容"""
         analysis = {}
         
         if text_column not in df.columns:
             return analysis
         
-        # 过滤空值
+        # 过滤空值和异常内容
         df_text = df[df[text_column].notna()].copy()
         if df_text.empty:
             return analysis
         
+        # 数据清洗
         texts = df_text[text_column].astype(str)
+        
+        # 过滤异常内容
+        import re
+        cleaned_texts = []
+        for text in texts:
+            text = text.strip()
+            # 过滤空白内容
+            if not text or text.isspace():
+                continue
+            # 过滤只有空格的内容
+            if len(text.replace(' ', '').replace('\t', '').replace('\n', '')) == 0:
+                continue
+            # 过滤过短内容（少于2个有效字符）
+            if len(re.sub(r'\s+', '', text)) < 2:
+                continue
+            # 过滤包含大量数字或英文的异常内容
+            if re.search(r'[0-9]{8,}', text) or re.search(r'[A-Za-z]{15,}', text):
+                continue
+            cleaned_texts.append(text)
+        
+        if not cleaned_texts:
+            return analysis
+            
+        # 去重
+        texts = pd.Series(cleaned_texts).drop_duplicates()
         
         # 基础统计
         analysis['basic_stats'] = {
@@ -82,13 +141,25 @@ class ContentAnalyzer:
         keywords = jieba.analyse.extract_tags(all_text, topK=50, withWeight=True)
         analysis['keywords'] = [(word, weight) for word, weight in keywords if word not in self.stop_words]
         
-        # 词频统计
+        # 词频统计 - 增强版
         words = []
         for text in texts:
-            words.extend([word for word in jieba.cut(text) if len(word) > 1 and word not in self.stop_words])
+            # 分词并过滤
+            text_words = jieba.cut(text)
+            filtered_words = [
+                word.strip() for word in text_words 
+                if len(word.strip()) >= 2  # 至少2个字符
+                and word.strip() not in self.stop_words  # 不在停用词中
+                and not word.strip().isdigit()  # 不是纯数字
+                and not word.strip().isspace()  # 不是空白字符
+                and word.strip()  # 不为空
+            ]
+            words.extend(filtered_words)
         
         word_freq = Counter(words)
-        analysis['word_frequency'] = dict(word_freq.most_common(30))
+        # 过滤低频词（出现次数少于2次的词）
+        filtered_freq = {word: freq for word, freq in word_freq.items() if freq >= 2}
+        analysis['word_frequency'] = dict(Counter(filtered_freq).most_common(50))
         
         # 情感词分析（简单版本）
         positive_words = ['好', '棒', '赞', '喜欢', '开心', '快乐', '满意', '优秀', '完美', '美好', '幸福', '成功']
@@ -188,7 +259,7 @@ class ContentAnalyzer:
         return analysis
     
     @cache_data(ttl=1800)
-    def analyze_content_topics(self, df: pd.DataFrame, text_column: str = '微博内容') -> dict:
+    def analyze_content_topics(self, df: pd.DataFrame, text_column: str = '微博文本') -> dict:
         """分析内容主题"""
         analysis = {}
         
@@ -241,6 +312,50 @@ class ContentAnalyzer:
         
         return analysis
     
+    def detect_chinese_font(self):
+        """检测并返回可用的中文字体路径"""
+        # 常见中文字体路径
+        font_paths = []
+        
+        # Windows系统字体路径
+        if platform.system() == 'Windows':
+            windows_fonts = [
+                'C:/Windows/Fonts/simhei.ttf',  # 黑体
+                'C:/Windows/Fonts/simsun.ttc',  # 宋体
+                'C:/Windows/Fonts/msyh.ttc',    # 微软雅黑
+                'C:/Windows/Fonts/simkai.ttf',  # 楷体
+            ]
+            font_paths.extend(windows_fonts)
+        
+        # macOS系统字体路径
+        elif platform.system() == 'Darwin':
+            mac_fonts = [
+                '/System/Library/Fonts/PingFang.ttc',
+                '/System/Library/Fonts/Hiragino Sans GB.ttc',
+                '/Library/Fonts/Arial Unicode MS.ttf',
+                '/System/Library/Fonts/STHeiti Light.ttc',
+            ]
+            font_paths.extend(mac_fonts)
+        
+        # Linux系统字体路径
+        else:
+            linux_fonts = [
+                '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',
+                '/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',
+                '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+                '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+                '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            ]
+            font_paths.extend(linux_fonts)
+        
+        # 检查字体文件是否存在
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                return font_path
+        
+        # 如果没有找到字体文件，返回None
+        return None
+    
     def create_wordcloud(self, word_freq: dict, max_words: int = 100) -> plt.Figure:
         """创建词云图"""
         if not word_freq:
@@ -251,33 +366,60 @@ class ContentAnalyzer:
             ax.axis('off')
             return fig
         
+        # 检测中文字体
+        font_path = self.detect_chinese_font()
+        
         # 创建词云
         try:
-            # 云环境兼容的WordCloud配置
-            wordcloud = WordCloud(
-                width=800,
-                height=400,
-                background_color='white',
-                max_words=max_words,
-                colormap='viridis',
-                prefer_horizontal=0.9,
-                relative_scaling=0.5,
-                collocations=False,
-                mode='RGBA'
-            ).generate_from_frequencies(word_freq)
+            # 优先使用检测到的中文字体
+            wordcloud_config = {
+                'width': 800,
+                'height': 400,
+                'background_color': 'white',
+                'max_words': max_words,
+                'colormap': 'viridis',
+                'prefer_horizontal': 0.9,
+                'relative_scaling': 0.5,
+                'collocations': False,
+                'mode': 'RGBA',
+                'font_step': 1,
+                'max_font_size': 100,
+                'min_font_size': 10
+            }
+            
+            if font_path:
+                wordcloud_config['font_path'] = font_path
+                st.info(f"🎨 使用字体: {os.path.basename(font_path)}")
+            else:
+                st.warning("⚠️ 未检测到中文字体，使用默认字体（可能无法正确显示中文）")
+            
+            wordcloud = WordCloud(**wordcloud_config).generate_from_frequencies(word_freq)
+            
         except Exception as e:
             # 如果出现任何问题，使用最简配置
             try:
-                wordcloud = WordCloud(
-                    width=800,
-                    height=400,
-                    background_color='white',
-                    max_words=max_words,
-                    mode='RGBA'
-                ).generate_from_frequencies(word_freq)
+                st.warning(f"词云生成遇到问题，尝试简化配置: {str(e)}")
+                simple_config = {
+                    'width': 800,
+                    'height': 400,
+                    'background_color': 'white',
+                    'max_words': max_words,
+                    'mode': 'RGBA',
+                    'max_font_size': 80,
+                    'min_font_size': 10
+                }
+                
+                if font_path:
+                    simple_config['font_path'] = font_path
+                
+                wordcloud = WordCloud(**simple_config).generate_from_frequencies(word_freq)
+                
             except Exception as e2:
                 st.error(f"词云生成失败: {str(e2)}")
                 st.info("💡 提示：这可能是云环境的字体或图像处理问题")
+                # 显示字体检测信息
+                st.info(f"🔍 系统类型: {platform.system()}")
+                st.info(f"🔍 检测到的字体: {font_path or '无'}")
                 return None
         
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -315,7 +457,7 @@ def main():
     )
     
     # 选择文本列
-    text_columns = [col for col in df.columns if df[col].dtype == 'object' and '内容' in col]
+    text_columns = [col for col in df.columns if df[col].dtype == 'object' and ('内容' in col or '文本' in col)]
     if not text_columns:
         text_columns = [col for col in df.columns if df[col].dtype == 'object']
     
@@ -772,17 +914,60 @@ def show_wordcloud_analysis(df: pd.DataFrame, analyzer: ContentAnalyzer, text_co
     # 词云参数设置
     st.subheader("⚙️ 词云设置")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         max_words = st.slider("最大词汇数", 20, 200, 100)
     with col2:
         min_freq = st.slider("最小词频", 1, 10, 2)
+    with col3:
+        min_word_len = st.slider("最小词长", 2, 5, 2)
+    
+    # 高级过滤选项
+    with st.expander("🔧 高级过滤选项", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            filter_numbers = st.checkbox("过滤纯数字", value=True)
+            filter_english = st.checkbox("过滤纯英文", value=False)
+        with col2:
+            filter_single_char = st.checkbox("过滤单字符", value=True)
+            custom_stopwords = st.text_area("自定义停用词（用逗号分隔）", placeholder="例如：微博,转发,评论")
+    
+    # 应用高级过滤选项
+    additional_stopwords = set()
+    if custom_stopwords:
+        additional_stopwords = set([word.strip() for word in custom_stopwords.split(',') if word.strip()])
     
     # 过滤词频
-    filtered_word_freq = {word: freq for word, freq in word_freq.items() if freq >= min_freq}
+    filtered_word_freq = {}
+    for word, freq in word_freq.items():
+        # 基础频率过滤
+        if freq < min_freq:
+            continue
+        
+        # 词长过滤
+        if len(word) < min_word_len:
+            continue
+            
+        # 自定义停用词过滤
+        if word in additional_stopwords:
+            continue
+            
+        # 数字过滤
+        if filter_numbers and word.isdigit():
+            continue
+            
+        # 英文过滤
+        if filter_english and word.isascii() and word.isalpha():
+            continue
+            
+        # 单字符过滤
+        if filter_single_char and len(word) == 1:
+            continue
+            
+        filtered_word_freq[word] = freq
     
     if not filtered_word_freq:
-        st.warning(f"没有词频大于等于{min_freq}的词汇")
+        st.warning(f"应用过滤条件后没有符合要求的词汇")
         return
     
     # 生成词云

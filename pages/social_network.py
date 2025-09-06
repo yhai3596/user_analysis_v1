@@ -110,7 +110,7 @@ class SocialNetworkAnalyzer:
         return analysis
     
     @cache_data(ttl=1800)
-    def analyze_mention_network(self, df: pd.DataFrame, text_column: str = '微博内容') -> dict:
+    def analyze_mention_network(self, df: pd.DataFrame, text_column: str = '微博文本') -> dict:
         """分析@提及网络"""
         analysis = {}
         

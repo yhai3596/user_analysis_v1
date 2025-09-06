@@ -294,7 +294,7 @@ class UserBehaviorVisualizer:
         
         # 创建词云
         try:
-            # 云环境兼容的WordCloud配置
+            # 云环境兼容的WordCloud配置，添加中文字体支持
             wordcloud = WordCloud(
                 width=800,
                 height=400,
@@ -304,7 +304,11 @@ class UserBehaviorVisualizer:
                 prefer_horizontal=0.9,
                 relative_scaling=0.5,
                 collocations=False,
-                mode='RGBA'
+                mode='RGBA',
+                font_path=None,
+                font_step=1,
+                max_font_size=100,
+                min_font_size=10
             ).generate(text)
         except Exception as e:
             # 如果出现任何问题，使用最简配置
@@ -314,7 +318,10 @@ class UserBehaviorVisualizer:
                     height=400,
                     background_color='white',
                     max_words=max_words,
-                    mode='RGBA'
+                    mode='RGBA',
+                    font_path=None,
+                    max_font_size=80,
+                    min_font_size=10
                 ).generate(text)
             except Exception as e2:
                 st.error(f"词云生成失败: {str(e2)}")
