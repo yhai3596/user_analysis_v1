@@ -11,6 +11,12 @@ from wordcloud import WordCloud
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, timedelta
+import jieba
+from collections import Counter
+import warnings
+import os
+import platform
+warnings.filterwarnings('ignore')
 
 class UserBehaviorVisualizer:
     """
@@ -24,6 +30,32 @@ class UserBehaviorVisualizer:
         
         # 中文字体设置（用于wordcloud）
         self.font_path = None  # 可以设置中文字体路径
+    
+    def is_cloud_environment(self):
+        """检测是否在云环境中运行"""
+        # 检测常见的云环境标识
+        cloud_indicators = [
+            'STREAMLIT_SHARING',  # Streamlit Cloud
+            'HEROKU',             # Heroku
+            'VERCEL',             # Vercel
+            'NETLIFY',            # Netlify
+            'AWS_LAMBDA_FUNCTION_NAME',  # AWS Lambda
+            'GOOGLE_CLOUD_PROJECT',      # Google Cloud
+        ]
+        
+        for indicator in cloud_indicators:
+            if os.environ.get(indicator):
+                return True
+        
+        # 检测是否在容器环境中
+        if os.path.exists('/.dockerenv'):
+            return True
+            
+        # 检测Streamlit Cloud特有路径
+        if '/mount/src' in os.getcwd():
+            return True
+            
+        return False
     
     def plot_user_distribution(self, df: pd.DataFrame, 
                               group_by: str = '性别',
@@ -292,37 +324,60 @@ class UserBehaviorVisualizer:
             st.error("文本数据为空")
             return plt.figure()
         
+        # 检测运行环境
+        is_cloud = self.is_cloud_environment()
+        
         # 创建词云
         try:
-            # 云环境兼容的WordCloud配置，添加中文字体支持
-            wordcloud = WordCloud(
-                width=800,
-                height=400,
-                background_color='white',
-                max_words=max_words,
-                colormap='viridis',
-                prefer_horizontal=0.9,
-                relative_scaling=0.5,
-                collocations=False,
-                mode='RGBA',
-                font_path=None,
-                font_step=1,
-                max_font_size=100,
-                min_font_size=10
-            ).generate(text)
+            # 云环境优化配置
+            wordcloud_config = {
+                'width': 800,
+                'height': 400,
+                'background_color': 'white',
+                'max_words': max_words,
+                'colormap': 'viridis',
+                'prefer_horizontal': 0.9,
+                'relative_scaling': 0.5,
+                'collocations': False,
+                'mode': 'RGBA'
+            }
+            
+            # 根据环境调整配置
+            if is_cloud:
+                # 云环境使用更保守的配置
+                wordcloud_config.update({
+                    'max_font_size': 80,
+                    'min_font_size': 10,
+                    'font_step': 2
+                })
+                st.info("☁️ 云环境模式：使用默认字体配置")
+            else:
+                # 本地环境可以使用更丰富的配置
+                wordcloud_config.update({
+                    'font_step': 1,
+                    'max_font_size': 100,
+                    'min_font_size': 10
+                })
+                st.info("🖥️ 本地环境：使用优化配置")
+            
+            wordcloud = WordCloud(**wordcloud_config).generate(text)
+            
         except Exception as e:
             # 如果出现任何问题，使用最简配置
             try:
-                wordcloud = WordCloud(
-                    width=800,
-                    height=400,
-                    background_color='white',
-                    max_words=max_words,
-                    mode='RGBA',
-                    font_path=None,
-                    max_font_size=80,
-                    min_font_size=10
-                ).generate(text)
+                st.warning(f"词云生成遇到问题，尝试简化配置: {str(e)}")
+                simple_config = {
+                    'width': 800,
+                    'height': 400,
+                    'background_color': 'white',
+                    'max_words': max_words,
+                    'mode': 'RGBA',
+                    'max_font_size': 80,
+                    'min_font_size': 10
+                }
+                
+                wordcloud = WordCloud(**simple_config).generate(text)
+                
             except Exception as e2:
                 st.error(f"词云生成失败: {str(e2)}")
                 st.info("💡 提示：这可能是云环境的字体或图像处理问题")

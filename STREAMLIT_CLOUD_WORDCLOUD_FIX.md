@@ -76,13 +76,54 @@ except Exception as e:
    - ✅ 统一配置参数
    - ✅ 添加失败时的备用图形
 
+## 🔄 最新修复 (2024)
+
+### 问题：git push后词云显示异常
+
+**根本原因：**
+- 新增的中文字体检测功能在云环境中失败
+- 云环境通常没有本地字体文件
+- 字体检测失败导致词云生成异常
+
+**解决方案：**
+
+1. **添加云环境检测功能**
+   ```python
+   def is_cloud_environment(self):
+       """检测是否在云环境中运行"""
+       cloud_indicators = [
+           'STREAMLIT_SHARING',  # Streamlit Cloud
+           'HEROKU', 'VERCEL', 'NETLIFY',
+           'AWS_LAMBDA_FUNCTION_NAME',
+           'GOOGLE_CLOUD_PROJECT'
+       ]
+       
+       for indicator in cloud_indicators:
+           if os.environ.get(indicator):
+               return True
+       
+       # 检测容器环境和Streamlit Cloud路径
+       if os.path.exists('/.dockerenv') or '/mount/src' in os.getcwd():
+           return True
+       
+       return False
+   ```
+
+2. **智能配置切换**
+   - **云环境**：跳过字体检测，使用保守配置
+   - **本地环境**：启用字体检测，使用优化配置
+
+3. **修改的文件**
+   - ✅ `pages/content_analysis.py` - 添加云环境检测和智能配置
+   - ✅ `utils/visualizer.py` - 同步云环境处理逻辑
+
 ## 🚀 部署步骤
 
 ### 1. 推送更新到 GitHub
 
 ```bash
 git add .
-git commit -m "fix: 修复Streamlit Cloud词云生成问题"
+git commit -m "fix: 修复云环境词云字体检测问题"
 git push origin main
 ```
 
@@ -98,6 +139,7 @@ git push origin main
 - [ ] 应用成功启动
 - [ ] 词云分析页面可访问
 - [ ] 词云图正常生成
+- [ ] 显示"☁️ 云环境模式"提示
 - [ ] 无 "cannot open resource" 错误
 
 ## 🔧 故障排除

@@ -312,8 +312,38 @@ class ContentAnalyzer:
         
         return analysis
     
+    def is_cloud_environment(self):
+        """检测是否在云环境中运行"""
+        # 检测常见的云环境标识
+        cloud_indicators = [
+            'STREAMLIT_SHARING',  # Streamlit Cloud
+            'HEROKU',             # Heroku
+            'VERCEL',             # Vercel
+            'NETLIFY',            # Netlify
+            'AWS_LAMBDA_FUNCTION_NAME',  # AWS Lambda
+            'GOOGLE_CLOUD_PROJECT',      # Google Cloud
+        ]
+        
+        for indicator in cloud_indicators:
+            if os.environ.get(indicator):
+                return True
+        
+        # 检测是否在容器环境中
+        if os.path.exists('/.dockerenv'):
+            return True
+            
+        # 检测Streamlit Cloud特有路径
+        if '/mount/src' in os.getcwd():
+            return True
+            
+        return False
+    
     def detect_chinese_font(self):
         """检测并返回可用的中文字体路径"""
+        # 如果在云环境中，跳过字体检测
+        if self.is_cloud_environment():
+            return None
+            
         # 常见中文字体路径
         font_paths = []
         
@@ -366,12 +396,13 @@ class ContentAnalyzer:
             ax.axis('off')
             return fig
         
-        # 检测中文字体
+        # 检测运行环境和字体
+        is_cloud = self.is_cloud_environment()
         font_path = self.detect_chinese_font()
         
         # 创建词云
         try:
-            # 优先使用检测到的中文字体
+            # 云环境优化配置
             wordcloud_config = {
                 'width': 800,
                 'height': 400,
@@ -381,17 +412,31 @@ class ContentAnalyzer:
                 'prefer_horizontal': 0.9,
                 'relative_scaling': 0.5,
                 'collocations': False,
-                'mode': 'RGBA',
-                'font_step': 1,
-                'max_font_size': 100,
-                'min_font_size': 10
+                'mode': 'RGBA'
             }
             
-            if font_path:
-                wordcloud_config['font_path'] = font_path
-                st.info(f"🎨 使用字体: {os.path.basename(font_path)}")
+            # 根据环境调整配置
+            if is_cloud:
+                # 云环境使用更保守的配置
+                wordcloud_config.update({
+                    'max_font_size': 80,
+                    'min_font_size': 10,
+                    'font_step': 2
+                })
+                st.info("☁️ 云环境模式：使用默认字体配置")
             else:
-                st.warning("⚠️ 未检测到中文字体，使用默认字体（可能无法正确显示中文）")
+                # 本地环境可以使用更丰富的配置
+                wordcloud_config.update({
+                    'font_step': 1,
+                    'max_font_size': 100,
+                    'min_font_size': 10
+                })
+                
+                if font_path:
+                    wordcloud_config['font_path'] = font_path
+                    st.info(f"🎨 使用字体: {os.path.basename(font_path)}")
+                else:
+                    st.warning("⚠️ 未检测到中文字体，使用默认字体")
             
             wordcloud = WordCloud(**wordcloud_config).generate_from_frequencies(word_freq)
             
