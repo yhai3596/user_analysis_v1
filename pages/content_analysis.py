@@ -366,7 +366,7 @@ class ContentAnalyzer:
             
             if noto_fonts:
                 font_name, font_path = noto_fonts[0]
-                st.info(f"☁️ 云环境模式：找到Noto字体 {font_name}")
+                st.success(f"☁️ 云环境模式：找到Noto字体 {font_name}")
                 return font_path
             
             # 查找其他可能的中文字体
@@ -379,68 +379,88 @@ class ContentAnalyzer:
             
             if chinese_fonts:
                 font_name, font_path = chinese_fonts[0]
-                st.info(f"☁️ 云环境模式：找到中文字体 {font_name}")
+                st.success(f"☁️ 云环境模式：找到中文字体 {font_name}")
                 return font_path
             
-            # 查找DejaVu字体作为备选
-            dejavu_fonts = []
+            # 尝试下载字体
+            st.info("☁️ 云环境模式：未找到本地中文字体，尝试下载...")
+            downloaded_font = self._try_download_cloud_font()
+            if downloaded_font:
+                return downloaded_font
+            
+            # 查找任何可用字体作为最后备选
+            available_fonts = []
             for font in fm.fontManager.ttflist:
-                if 'dejavu' in font.name.lower() and 'sans' in font.name.lower():
-                    dejavu_fonts.append((font.name, font.fname))
+                if font.fname and os.path.exists(font.fname):
+                    available_fonts.append((font.name, font.fname))
             
-            if dejavu_fonts:
-                font_name, font_path = dejavu_fonts[0]
-                st.warning(f"☁️ 云环境模式：未找到中文字体，使用 {font_name}（可能显示方块）")
+            if available_fonts:
+                font_name, font_path = available_fonts[0]
+                st.warning(f"☁️ 云环境模式：使用系统字体 {font_name}（中文可能显示为方块）")
                 return font_path
             
-            # 如果没有找到任何合适字体，返回None
-            st.warning("☁️ 云环境字体检测失败，将使用默认配置")
+            # 如果没有找到任何字体，返回特殊标记
+            st.error("☁️ 云环境字体检测失败，将使用纯英文模式")
+            return "NO_FONT"
+            
+        except Exception as e:
+            st.error(f"☁️ 云环境字体检测失败: {e}")
+            return "NO_FONT"
+    
+    def _try_download_cloud_font(self):
+        """尝试为云环境下载中文字体"""
+        try:
+            import tempfile
+            import urllib.request
+            
+            # 使用更兼容WordCloud的TTF字体
+            font_urls = [
+                # 使用可靠的TTF中文字体源
+                'https://raw.githubusercontent.com/StellarCN/scp_zh/master/fonts/SimHei.ttf',
+                'https://github.com/be5invis/Sarasa-Gothic/releases/download/v0.41.6/sarasa-gothic-ttf-0.41.6.7z',
+                'https://fonts.gstatic.com/s/notosanscjksc/v36/HI_SiYsKILxRpg3hIP6sJ7fM7PqlPevW.ttf'
+            ]
+            
+            # 创建临时目录
+            temp_dir = tempfile.mkdtemp()
+            
+            for i, url in enumerate(font_urls):
+                try:
+                    # 跳过压缩文件
+                    if url.endswith('.7z'):
+                        continue
+                        
+                    font_path = os.path.join(temp_dir, f'chinese_font_{i}.ttf')
+                    
+                    # 设置超时和用户代理
+                    req = urllib.request.Request(url, headers={
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    })
+                    
+                    st.info(f"正在下载字体 {i+1}...")
+                    with urllib.request.urlopen(req, timeout=60) as response:
+                        content = response.read()
+                        
+                    # 检查内容是否为有效字体文件
+                    if len(content) > 100000:  # 至少100KB
+                        with open(font_path, 'wb') as f:
+                            f.write(content)
+                        
+                        # 验证字体文件
+                        if os.path.exists(font_path) and os.path.getsize(font_path) > 100000:
+                            st.success(f"字体下载成功: {font_path}")
+                            return font_path
+                            
+                except Exception as download_error:
+                    st.warning(f"字体下载失败 {i+1}: {str(download_error)[:100]}")
+                    continue
+            
+            st.error("所有字体下载尝试均失败")
             return None
             
         except Exception as e:
-            st.warning(f"☁️ 云环境字体检测失败: {e}")
+            st.error(f"云环境字体下载功能失败: {e}")
             return None
-    
-    def _try_download_cloud_font(self):
-         """尝试为云环境下载中文字体"""
-         try:
-             import tempfile
-             import urllib.request
-             
-             # 使用开源的TTF中文字体（更兼容wordcloud）
-             font_urls = [
-                 # 使用GitHub上的开源中文字体
-                 'https://github.com/adobe-fonts/source-han-sans/raw/release/OTF/SimplifiedChinese/SourceHanSansSC-Regular.otf',
-                 'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf'
-             ]
-             
-             # 创建临时目录
-             temp_dir = tempfile.mkdtemp()
-             
-             for i, url in enumerate(font_urls):
-                 try:
-                     font_extension = url.split('.')[-1]
-                     font_path = os.path.join(temp_dir, f'chinese_font_{i}.{font_extension}')
-                     
-                     # 设置超时和用户代理
-                     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                     with urllib.request.urlopen(req, timeout=30) as response:
-                         with open(font_path, 'wb') as f:
-                             f.write(response.read())
-                     
-                     # 检查文件是否下载成功
-                     if os.path.exists(font_path) and os.path.getsize(font_path) > 1000:  # 至少1KB
-                         return font_path
-                         
-                 except Exception as download_error:
-                     st.warning(f"字体下载失败 {i+1}: {download_error}")
-                     continue
-             
-             return None
-             
-         except Exception as e:
-             st.warning(f"云环境字体下载功能失败: {e}")
-             return None
     
     def detect_chinese_font(self):
         """检测可用的中文字体"""
@@ -550,24 +570,47 @@ class ContentAnalyzer:
                     'font_step': 2
                 })
                 
-                # 云环境字体配置 - 直接使用检测结果
-                if font_path:
+                # 云环境字体配置 - 处理字体检测结果
+                if font_path and font_path != "NO_FONT":
                     wordcloud_config['font_path'] = font_path
+                    st.success(f"☁️ 云环境模式：使用字体 {os.path.basename(font_path)}")
+                elif font_path == "NO_FONT":
+                    # 无字体模式：过滤中文，只显示英文和数字
+                    st.warning("☁️ 云环境模式：无中文字体，将显示英文词云")
+                    # 过滤词频字典，只保留英文和数字
+                    filtered_word_freq = {}
+                    for word, freq in word_freq.items():
+                        # 只保留包含英文字母或数字的词
+                        if re.search(r'[a-zA-Z0-9]', word):
+                            filtered_word_freq[word] = freq
+                    
+                    if not filtered_word_freq:
+                        # 如果没有英文词，创建提示信息
+                        filtered_word_freq = {
+                            'No English Content': 50,
+                            'Chinese Text Only': 30,
+                            'Font Not Available': 20
+                        }
+                    
+                    word_freq = filtered_word_freq
+                    wordcloud_config.update({
+                        'font_step': 1,
+                        'max_font_size': 60,
+                        'min_font_size': 12,
+                        'prefer_horizontal': 1.0,
+                        'relative_scaling': 0.3,
+                        'mode': 'RGB'
+                    })
                 else:
-                    # 如果字体检测失败，尝试下载字体
-                    cloud_font_path = self._try_download_cloud_font()
-                    if cloud_font_path:
-                        wordcloud_config['font_path'] = cloud_font_path
-                        st.success("☁️ 云环境模式：成功下载中文字体")
-                    else:
-                        # 使用特殊的wordcloud配置来处理Unicode
-                        wordcloud_config.update({
-                             'font_step': 1,
-                             'max_font_size': 60,
-                             'min_font_size': 12,
-                             'prefer_horizontal': 1.0,  # 强制水平显示
-                             'relative_scaling': 0.3,
-                             'mode': 'RGB'  # 改用RGB模式
+                    # 使用特殊的wordcloud配置来处理Unicode
+                    st.info("☁️ 云环境模式：使用优化配置")
+                    wordcloud_config.update({
+                        'font_step': 1,
+                        'max_font_size': 60,
+                        'min_font_size': 12,
+                        'prefer_horizontal': 1.0,  # 强制水平显示
+                        'relative_scaling': 0.3,
+                        'mode': 'RGB'  # 改用RGB模式
                         })
                         st.warning("☁️ 云环境模式：使用优化配置，如仍显示方块请联系管理员")
                         
