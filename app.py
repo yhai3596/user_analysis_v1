@@ -162,7 +162,7 @@ def sidebar_controls():
     st.sidebar.subheader("📁 数据加载")
     
     # 文件选择
-    default_file = "e:\\AICoding\\用户数据分析\\切片.xlsx"
+    default_file = "切片.xlsx"  # 使用相对路径
     file_path = st.sidebar.text_input(
         "数据文件路径",
         value=default_file,
@@ -437,7 +437,7 @@ def show_data_overview():
         # 文件路径输入
         file_path = st.text_input(
             "数据文件路径",
-            value="e:\\AICoding\\用户数据分析\\切片.xlsx",
+            value="切片.xlsx",  # 使用相对路径
             help="请输入Excel或CSV文件的完整路径"
         )
         

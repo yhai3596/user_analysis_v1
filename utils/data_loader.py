@@ -397,7 +397,7 @@ if __name__ == "__main__":
     loader = BigDataLoader()
     
     # 测试数据信息获取
-    file_path = "e:\\AICoding\\用户数据分析\\切片.xlsx"
+    file_path = "切片.xlsx"  # 使用相对路径
     if os.path.exists(file_path):
         info = loader.get_data_info(file_path)
         print("数据文件信息:")
