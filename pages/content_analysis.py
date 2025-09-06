@@ -557,26 +557,26 @@ class ContentAnalyzer:
                     # 如果字体检测失败，尝试下载字体
                     cloud_font_path = self._try_download_cloud_font()
                     if cloud_font_path:
-                         wordcloud_config['font_path'] = cloud_font_path
-                         st.success("☁️ 云环境模式：成功下载中文字体")
-                     else:
-                         # 使用特殊的wordcloud配置来处理Unicode
-                         wordcloud_config.update({
+                        wordcloud_config['font_path'] = cloud_font_path
+                        st.success("☁️ 云环境模式：成功下载中文字体")
+                    else:
+                        # 使用特殊的wordcloud配置来处理Unicode
+                        wordcloud_config.update({
                              'font_step': 1,
                              'max_font_size': 60,
                              'min_font_size': 12,
                              'prefer_horizontal': 1.0,  # 强制水平显示
                              'relative_scaling': 0.3,
                              'mode': 'RGB'  # 改用RGB模式
-                         })
-                         st.warning("☁️ 云环境模式：使用优化配置，如仍显示方块请联系管理员")
-                         
-                         # 尝试设置matplotlib的字体回退
-                         try:
-                             plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans']
-                             plt.rcParams['axes.unicode_minus'] = False
-                         except:
-                             pass
+                        })
+                        st.warning("☁️ 云环境模式：使用优化配置，如仍显示方块请联系管理员")
+                        
+                        # 尝试设置matplotlib的字体回退
+                        try:
+                            plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans']
+                            plt.rcParams['axes.unicode_minus'] = False
+                        except:
+                            pass
             else:
                 # 本地环境可以使用更丰富的配置
                 base_font_size = font_config.get('font_size', 12)
