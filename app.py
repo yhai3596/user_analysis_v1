@@ -19,6 +19,7 @@ from utils.data_loader import BigDataLoader, DataProcessor
 from utils.cache_manager import cache_manager, cache_data, show_cache_info, clear_all_cache
 from utils.visualizer import UserBehaviorVisualizer, create_dashboard_metrics, display_metrics_cards
 from config.settings import get_config
+from config.version import get_version_info, format_version_display, format_roadmap_display
 
 # 导入分析页面模块
 try:
@@ -85,6 +86,25 @@ st.markdown("""
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
+    }
+    .version-update {
+        background-color: #f0f8ff;
+        border-left: 4px solid #1f77b4;
+        padding: 0.8rem;
+        margin: 0.5rem 0;
+        border-radius: 0.3rem;
+    }
+    .update-item {
+        margin: 0.3rem 0;
+        font-size: 0.9rem;
+    }
+    .version-badge {
+        background-color: #1f77b4;
+        color: white;
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.3rem;
+        font-size: 0.8rem;
+        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -246,8 +266,11 @@ def sidebar_controls():
     # 应用信息
     st.sidebar.markdown("---")
     st.sidebar.subheader("ℹ️ 应用信息")
+    
+    # 获取版本信息
+    version_info = get_version_info()
     st.sidebar.info(
-        "**用户行为分析系统 v1.0**\n\n"
+        f"**{version_info['app_name']} v{version_info['version']}**\n\n"
         "功能模块：\n"
         "• 用户画像分析\n"
         "• 地理行为分析\n"
@@ -255,6 +278,16 @@ def sidebar_controls():
         "• 内容行为分析\n"
         "• 社交网络分析"
     )
+    
+    # 版本更新说明
+    st.sidebar.subheader("🔄 版本更新")
+    with st.sidebar.expander("📋 更新日志", expanded=False):
+        changelog = format_version_display()
+        st.markdown(changelog)
+    
+    with st.sidebar.expander("🚀 即将推出", expanded=False):
+        roadmap = format_roadmap_display()
+        st.markdown(roadmap)
 
 def main_content():
     """主内容区域"""
@@ -406,9 +439,11 @@ def main():
     
     # 页脚
     st.markdown("---")
+    version_info = get_version_info()
     st.markdown(
-        "<div style='text-align: center; color: #666; padding: 1rem;'>"
-        "用户行为分析系统 | 基于 Streamlit 构建 | © 2024"
+        f"<div style='text-align: center; color: #666; padding: 1rem;'>"
+        f"{version_info['app_name']} v{version_info['version']} | 基于 Streamlit 构建 | © 2024 | "
+        f"<a href='#' style='color: #1f77b4; text-decoration: none;'>📋 更新日志</a>"
         "</div>",
         unsafe_allow_html=True
     )
