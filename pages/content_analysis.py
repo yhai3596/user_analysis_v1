@@ -335,7 +335,13 @@ class ContentAnalyzer:
         # 检测Streamlit Cloud特有路径
         if '/mount/src' in os.getcwd():
             return True
-            
+        
+        # 检测是否为Windows本地环境
+        if platform.system() == 'Windows':
+            # Windows本地环境通常有这些特征
+            if os.path.exists('C:/Windows'):
+                return False
+                
         return False
     
     def detect_chinese_font(self):
@@ -452,24 +458,47 @@ class ContentAnalyzer:
                 # 尝试使用用户选择的字体
                 selected_font = font_config.get('selected_font', 'SimHei')
                 
-                # 首先尝试使用字体路径
-                if font_path:
+                # 优先使用用户选择的字体对应的字体文件
+                font_used = False
+                
+                # Windows系统字体映射
+                if platform.system() == 'Windows':
+                    font_mapping = {
+                        'SimHei': 'C:/Windows/Fonts/simhei.ttf',
+                        'SimSun': 'C:/Windows/Fonts/simsun.ttc',
+                        'Microsoft YaHei': 'C:/Windows/Fonts/msyh.ttc',
+                        'KaiTi': 'C:/Windows/Fonts/simkai.ttf'
+                    }
+                    
+                    if selected_font in font_mapping:
+                        font_file = font_mapping[selected_font]
+                        if os.path.exists(font_file):
+                            wordcloud_config['font_path'] = font_file
+                            st.info(f"🎨 使用用户选择的字体: {selected_font}")
+                            font_used = True
+                
+                # 如果用户选择的字体不可用，尝试使用检测到的字体
+                if not font_used and font_path:
                     wordcloud_config['font_path'] = font_path
-                    st.info(f"🎨 使用字体文件: {os.path.basename(font_path)}")
-                else:
-                    # 如果没有字体文件，尝试使用字体名称
+                    st.info(f"🎨 使用检测到的字体文件: {os.path.basename(font_path)}")
+                    font_used = True
+                
+                # 最后尝试通过matplotlib查找字体
+                if not font_used:
                     try:
                         import matplotlib.font_manager as fm
                         # 查找用户选择的字体
                         font_files = [f for f in fm.fontManager.ttflist if selected_font in f.name]
                         if font_files:
                             wordcloud_config['font_path'] = font_files[0].fname
-                            st.info(f"🎨 使用用户选择的字体: {selected_font}")
-                        else:
-                            st.info(f"🎨 字体 {selected_font} 不可用，使用系统默认中文字体")
+                            st.info(f"🎨 通过matplotlib找到字体: {selected_font}")
+                            font_used = True
                     except Exception as font_error:
                         st.warning(f"字体检测失败: {font_error}")
-                        st.info("🎨 使用系统默认中文字体")
+                
+                if not font_used:
+                    st.warning(f"🎨 字体 {selected_font} 不可用，词云可能显示为方块")
+                    st.info("💡 建议在侧边栏选择其他可用字体")
             
             wordcloud = WordCloud(**wordcloud_config).generate_from_frequencies(word_freq)
             
